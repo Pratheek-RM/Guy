@@ -1,0 +1,235 @@
+//-------------------------------------------------------------------------
+//      ECE 385 Final Project                                            --
+//      Fall 2017                                                        --
+//                                                                       --
+//      by Pratheek Muskula and Hoesuh Jeong                             --
+//      10/06/2017                                                       --
+//                                                                       --
+//      Project Description: Side scrolling platform game, with all      --
+//      fundamental game functionality , but without full game aspects   --
+//      such as a start screen, score counter, timer.                    --
+//                                                                       --
+//-------------------------------------------------------------------------
+
+//This module was adapted from out lab 8
+
+//Top level Module
+module lab8( input               CLOCK_50,
+             input        [3:0]  KEY,          //bit 0 is set up as Reset
+             output logic [6:0]  HEX0, HEX1,
+             // VGA Interface 
+             output logic [7:0]  VGA_R,        //VGA Red
+                                 VGA_G,        //VGA Green
+                                 VGA_B,        //VGA Blue
+             output logic        VGA_CLK,      //VGA Clock
+                                 VGA_SYNC_N,   //VGA Sync signal
+                                 VGA_BLANK_N,  //VGA Blank signal
+                                 VGA_VS,       //VGA virtical sync signal
+                                 VGA_HS,       //VGA horizontal sync signal
+             // CY7C67200 Interface
+             inout  wire  [15:0] OTG_DATA,     //CY7C67200 Data bus 16 Bits
+             output logic [1:0]  OTG_ADDR,     //CY7C67200 Address 2 Bits
+             output logic        OTG_CS_N,     //CY7C67200 Chip Select
+                                 OTG_RD_N,     //CY7C67200 Write
+                                 OTG_WR_N,     //CY7C67200 Read
+                                 OTG_RST_N,    //CY7C67200 Reset
+             input               OTG_INT,      //CY7C67200 Interrupt
+             // SDRAM Interface for Nios II Software
+             output logic [12:0] DRAM_ADDR,    //SDRAM Address 13 Bits
+             inout  wire  [31:0] DRAM_DQ,      //SDRAM Data 32 Bits
+             output logic [1:0]  DRAM_BA,      //SDRAM Bank Address 2 Bits
+             output logic [3:0]  DRAM_DQM,     //SDRAM Data Mast 4 Bits
+             output logic        DRAM_RAS_N,   //SDRAM Row Address Strobe
+                                 DRAM_CAS_N,   //SDRAM Column Address Strobe
+                                 DRAM_CKE,     //SDRAM Clock Enable
+                                 DRAM_WE_N,    //SDRAM Write Enable
+                                 DRAM_CS_N,    //SDRAM Chip Select
+                                 DRAM_CLK      //SDRAM Clock
+                    );
+    
+    logic Reset_h, Clk;
+    logic [31:0] keycode;
+    
+    assign Clk = CLOCK_50;
+    always_ff @ (posedge Clk) begin
+        Reset_h <= ~(KEY[0]);        // The push buttons are active low
+    end
+    //Used for keyboard
+    logic [1:0] hpi_addr;
+    logic [15:0] hpi_data_in, hpi_data_out;
+    logic hpi_r, hpi_w, hpi_cs;
+	 
+	 //Used for drawX and drawY
+	 logic [9:0] xCoordinate, yCoordinate;
+	 //Used for color_mapper and collsions
+	 logic [10:0] characterX, characterY, enemy1X, enemy1Y, platform1X, platform1Y;
+	 //progress for scrolling, enemyXmotion used for enemy and character collsions
+	 logic [10:0] progress, enemyXmotion;
+	 //character_, enemy1, and platform1 are used in color_mapper to decide what to drawX
+	 //w_on, s_on, a_on, d_on represent keys being pressed on the keyboard or FPGA in case the keyboard isn't working
+	 logic character_, enemy1, w_on, s_on, a_on, d_on, platform1;
+	 //enemyDir used to decide what frame to draw in color_mapper, dead used to end game
+	 logic enemyDir1, dead;
+	 //Used for platform collsion
+	 logic platform1Above, platform1Bellow;
+    
+    // Interface between NIOS II and EZ-OTG chip
+    hpi_io_intf hpi_io_inst(
+                            .Clk(Clk),
+                            .Reset(Reset_h),
+                            // signals connected to NIOS II
+                            .from_sw_address(hpi_addr),
+                            .from_sw_data_in(hpi_data_in),
+                            .from_sw_data_out(hpi_data_out),
+                            .from_sw_r(hpi_r),
+                            .from_sw_w(hpi_w),
+                            .from_sw_cs(hpi_cs),
+                            // signals connected to EZ-OTG chip
+                            .OTG_DATA(OTG_DATA),    
+                            .OTG_ADDR(OTG_ADDR),    
+                            .OTG_RD_N(OTG_RD_N),    
+                            .OTG_WR_N(OTG_WR_N),    
+                            .OTG_CS_N(OTG_CS_N),    
+                            .OTG_RST_N(OTG_RST_N),
+									 .OTG_INT(OTG_INT)
+    );
+     
+     // NIOS II interface
+     final2_soc nios_system(
+                             .clk_clk(Clk),         
+                             .reset_reset_n(1'b1),    // Never reset NIOS
+                             .sdram_wire_addr(DRAM_ADDR), 
+                             .sdram_wire_ba(DRAM_BA),   
+                             .sdram_wire_cas_n(DRAM_CAS_N),
+                             .sdram_wire_cke(DRAM_CKE),  
+                             .sdram_wire_cs_n(DRAM_CS_N), 
+                             .sdram_wire_dq(DRAM_DQ),   
+                             .sdram_wire_dqm(DRAM_DQM),  
+                             .sdram_wire_ras_n(DRAM_RAS_N),
+                             .sdram_wire_we_n(DRAM_WE_N), 
+                             .sdram_clk_clk(DRAM_CLK),
+                             .keycode_export(keycode),  
+                             .otg_hpi_address_export(hpi_addr),
+                             .otg_hpi_data_in_port(hpi_data_in),
+                             .otg_hpi_data_out_port(hpi_data_out),
+                             .otg_hpi_cs_export(hpi_cs),
+                             .otg_hpi_r_export(hpi_r),
+                             .otg_hpi_w_export(hpi_w)
+    );
+  
+	 
+	always_ff @ (posedge Clk) begin
+        if(Reset_h)
+            VGA_CLK <= 1'b0;
+        else
+            VGA_CLK <= ~VGA_CLK;
+    end
+    
+	  //Controls VGA output signals, so everything shows up cleanly on the monitor
+     VGA_controller vga_controller_instance(.Clk,
+														 .Reset(Reset_h),
+														 .VGA_HS,
+														 .VGA_VS,
+														 .VGA_CLK,
+														 .VGA_BLANK_N,
+														 .VGA_SYNC_N,
+														 .DrawX(xCoordinate),
+														 .DrawY(yCoordinate)
+		);
+	//Takes in keyboard input to decide if w,a,s,d are being pressed. Also takes in key button presses that emulate w,a,d in case the keyboard doesn't work	
+	keycodeReader keycodeReader_instance (
+														.keycode,
+														.KEY(KEY[3:1]),
+														.w_on,
+														.s_on,
+														.a_on,
+														.d_on
+	
+	);
+	
+//character module, player have control over it's movement    
+character character_instance(.Clk,
+							  .Reset(Reset_h),
+							  .frame_clk(VGA_VS),
+							  .DrawX(xCoordinate),
+							  .DrawY(yCoordinate),
+							  .w_on,
+							  .s_on,
+							  .a_on,
+							  .d_on,						  
+							  .is_character(character_),
+							  .enemyX(enemy1X),
+							  .enemyY(enemy1Y),
+							  .enemyXmotion,
+							  .above_platform1(platform1Above),
+							  .bellow_platform1(platform1Bellow),
+							  .characterX,
+							  .characterY,
+							  .progress,
+							  .dead
+	);     
+ //enemy module, game ends if the player contacts this AI  
+	enemy enemy_1(.Clk,
+							  .Reset(Reset_h),
+							  .frame_clk(VGA_VS),
+							  .DrawX(xCoordinate),
+							  .DrawY(yCoordinate),					  
+							  .is_enemy(enemy1),
+							 // .character_dir,
+							  .enemyX(enemy1X),
+							  .enemyY(enemy1Y),
+							  .enemyXmotion,
+							  .enemyDir(enemyDir1),
+							  .progress,
+							  .dead
+	); 
+//platform module	
+	platform platform_1( .Clk,                
+                        .Reset(Reset_h),              
+                        .frame_clk(VGA_VS),          
+								.DrawX(xCoordinate), 
+								.DrawY(yCoordinate), 
+								.progress,       
+								.is_platform(platform1),
+								.platformX(platform1X),
+								.platformY(platform1Y),
+								.characterX,
+								.characterY,
+								.above_platform(platform1Above),
+								.bellow_platform(platform1Bellow)
+	);  
+//Decides what color pixel to display to the VGA monitor
+	color_mapper color_instance(.is_character(character_),
+										 .enemy1,
+										 .frame_clk(VGA_VS),
+											.Clk,
+										  .DrawX(xCoordinate),
+										  .DrawY(yCoordinate),
+										  .d_on,
+										  .a_on,
+										  .VGA_R,
+										  .VGA_G,
+										  .VGA_B,
+										  .dead,
+										  .characterX,
+										  .characterY,
+										  .enemy1X,
+										  .enemy1Y,
+										  .enemyDir1,
+										  .platform1X,
+										  .platform1Y,
+										  .platform1,
+										  .progress
+	);
+    
+    // Display keycode on hex display
+    HexDriver hex_inst_0 (keycode[3:0], HEX0);
+    HexDriver hex_inst_1 (keycode[7:4], HEX1);
+    
+    /**************************************************************************************
+        ATTENTION! Please answer the following quesiton in your lab report! Points will be allocated for the answers!
+        Hidden Question #1/2:
+        What are the advantages and/or disadvantages of using a USB interface over PS/2 interface to
+             connect to the keyboard? List any two.  Give an answer in your Post-Lab.
+    **************************************************************************************/
+endmodule

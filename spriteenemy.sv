@@ -1,0 +1,103 @@
+module spriteenemy
+(
+		input [11:0] enemy_address,
+		input Clk,
+		output logic [7:0] VGA_R, VGA_G, VGA_B ,
+		output logic [3:0] data_Out
+);
+
+//update size of the unpacked array accordingly
+logic [3:0] mem [0:3071];
+logic [3:0] palatteVal;
+logic [3:0] data_Out_;
+logic [7:0] Red, Green, Blue;
+
+initial
+begin
+	 $readmemh("images/enemy.txt", mem);
+end
+
+
+always_ff @ (posedge Clk) begin
+	data_Out <= mem[enemy_address];
+end
+
+assign palatteVal = data_Out;
+assign VGA_R = Red;
+assign VGA_G = Green;
+assign VGA_B = Blue; 
+
+//Palette for enemy
+always_comb begin
+
+	unique case(palatteVal)
+		4'h00:
+			begin
+			//0x9C17DB
+				Red = 8'h9C; 
+            Green = 8'h17;
+            Blue = 8'hDB;
+			end
+		
+		4'h01:
+			begin
+			//0xEF24E5
+				Red = 8'hEF; 
+            Green = 8'h24;
+            Blue = 8'hE5;
+			end	
+		4'h02:
+			begin
+			//0x000000
+				Red = 8'h00; 
+            Green = 8'h00;
+            Blue = 8'h00;
+			end		
+		4'h03:
+			begin
+			//0x333333
+				Red = 8'h33; 
+            Green = 8'h33;
+            Blue = 8'h33;
+			end		
+		4'h04:
+			begin
+			//0xAE6C37
+				Red = 8'h91; 
+            Green = 8'h91;
+            Blue = 8'h91;
+			end		
+		4'h05:
+			begin
+			//0xE75B11
+				Red = 8'hE7; 
+            Green = 8'h5B;
+            Blue = 8'h11;
+			end		
+		4'h06:
+			begin
+			//0xEC7C41
+				Red = 8'hEC; 
+            Green = 8'h7C;
+            Blue = 8'h41;
+			end		
+		4'h07:
+				begin
+				//0xF9DEC4
+				Red = 8'hf9; 
+            Green = 8'hde;
+            Blue = 8'hc4;
+			end
+
+		default:
+		//These are just some garabage values
+			begin
+				Red = 8'hff; 
+            Green = 8'hff;
+            Blue = 8'hff;
+			end
+	endcase
+
+end
+
+endmodule
