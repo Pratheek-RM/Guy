@@ -1,5 +1,5 @@
 # Guy
-A side scrolling platformer that's playable on a DE2-115 FPGA board
+A side scrolling platformer that's playable on a DE2-115 FPGA board. For further documentation read the report, which is in the repository as a pdf
 
 ## Controls
 If keyboard is available: `w` - jump, `a` - left, `d` - right
